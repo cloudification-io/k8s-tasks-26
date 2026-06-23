@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: task-6-deployment-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: task-6-webhook/task-6-webhook-tls
+webhooks:
+- name: task-6.training.local
+  admissionReviewVersions:
+  - v1
+  sideEffects: None
+  timeoutSeconds: 5
+  failurePolicy: Fail
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: task-6
+  rules:
+  - operations: ["UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+  clientConfig:
+    service:
+      namespace: task-6-webhook
+      name: validator
+      path: /validate
+      port: 443

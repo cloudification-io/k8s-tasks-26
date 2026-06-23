@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: task-1
+  labels:
+    app: task-1-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: task-1-web
+  template:
+    metadata:
+      labels:
+        app: task-1-web
+    spec:
+      nodeSelector:
+        disktype: ssd
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: task-1-web
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-6-webhook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: validator
+  namespace: task-6-webhook
+spec:
+  selector:
+    app: validator
+  ports:
+  - port: 443
+    targetPort: 8443
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: task-6-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: task-6-ca
+  namespace: task-6-webhook
+spec:
+  isCA: true
+  commonName: task-6-ca
+  secretName: task-6-ca-secret
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: task-6-selfsigned
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: task-6-ca-issuer
+  namespace: task-6-webhook
+spec:
+  ca:
+    secretName: task-6-ca-secret
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: task-6-webhook-tls
+  namespace: task-6-webhook
+spec:
+  secretName: task-6-webhook-tls
+  duration: 8760h
+  renewBefore: 360h
+  dnsNames:
+  - validator.task-6-webhook.svc
+  - validator.task-6-webhook.svc.cluster.local
+  issuerRef:
+    name: task-6-ca-issuer
+    kind: Issuer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-script
+  namespace: task-6-webhook
+data:
+  app.py: |
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import ssl, json
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+
+            req = json.loads(body.decode("utf-8"))
+
+            resp = {
+                "apiVersion": "admission.k8s.io/v1",
+                "kind": "AdmissionReview",
+                "response": {
+                    "uid": req["request"]["uid"],
+                    "allowed": True
+                }
+            }
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp).encode())
+
+    httpd = HTTPServer(("0.0.0.0", 8443), H)
+
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain("/tls/tls.crt", "/tls/tls.key")
+
+    httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+    httpd.serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validator
+  namespace: task-6-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: validator
+  template:
+    metadata:
+      labels:
+        app: validator
+    spec:
+      containers:
+      - name: webhook
+        image: python:3.12-alpine
+        command: ["python", "/app/app.py"]
+        ports:
+        - containerPort: 8443
+        volumeMounts:
+        - name: script
+          mountPath: /app
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+
+      volumes:
+      - name: script
+        configMap:
+          name: webhook-script
+
+      - name: tls
+        secret:
+          secretName: task-6-webhook-tls
