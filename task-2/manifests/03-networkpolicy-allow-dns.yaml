@@ -10,12 +10,37 @@ spec:
   policyTypes:
   - Egress
   egress:
-  - to:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    - port: 8053
+      protocol: UDP
+    - port: 8053
+      protocol: TCP
+    to:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
+      podSelector:
+        matchExpressions:
+        - key: k8s-app
+          operator: In
+          values:
+          - kube-dns
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchExpressions:
+        - key: k8s-app
+          operator: In
+          values:
+          - node-local-dns
+    - ipBlock:
+        cidr: 169.254.20.10/32
+    - ipBlock:
+        cidr: fd30:1319:f1e:230b::1/128
+    - ipBlock:
+        cidr: 100.74.0.10/32

@@ -8,13 +8,6 @@ spec:
   policyTypes:
     - Egress
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              component: kube-apiserver
-      ports:
-        - protocol: TCP
-          port: 16443
+  - ports:
+    - port: 16443
+      protocol: TCP
