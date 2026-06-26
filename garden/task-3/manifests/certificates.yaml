@@ -1,0 +1,102 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: virtual-garden-selfsigned
+  namespace: virtual-garden
+spec:
+  selfSigned: {}
+---
+# The virtual-garden CA certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: virtual-garden-ca
+  namespace: virtual-garden
+spec:
+  isCA: true
+  commonName: virtual-garden-ca
+  secretName: virtual-garden-ca
+  duration: 87600h            # 10y
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: virtual-garden-selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: virtual-garden-ca
+  namespace: virtual-garden
+spec:
+  ca:
+    secretName: virtual-garden-ca
+---
+# kube-apiserver serving certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: virtual-garden-kube-apiserver-server
+  namespace: virtual-garden
+spec:
+  secretName: virtual-garden-kube-apiserver-server
+  duration: 8760h            # 1y
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - server auth
+  dnsNames:
+    - virtual-garden-kube-apiserver
+    - virtual-garden-kube-apiserver.virtual-garden
+    - virtual-garden-kube-apiserver.virtual-garden.svc
+    - virtual-garden-kube-apiserver.virtual-garden.svc.cluster.local
+    - kubernetes
+    - kubernetes.default
+    - kubernetes.default.svc
+    - kubernetes.default.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+  issuerRef:
+    name: virtual-garden-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: virtual-garden-admin-client
+  namespace: virtual-garden
+spec:
+  secretName: virtual-garden-admin-client
+  duration: 8760h
+  commonName: garden-admin
+  subject:
+    organizations:
+      - system:masters
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - client auth
+  issuerRef:
+    name: virtual-garden-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: virtual-garden-sa
+  namespace: virtual-garden
+spec:
+  secretName: virtual-garden-sa
+  duration: 87600h
+  commonName: virtual-garden-sa
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Never
+  issuerRef:
+    name: virtual-garden-ca
+    kind: Issuer

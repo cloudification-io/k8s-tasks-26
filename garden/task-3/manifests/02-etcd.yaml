@@ -1,0 +1,31 @@
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: Etcd
+metadata:
+  name: virtual-garden-etcd
+  namespace: virtual-garden
+spec:
+  replicas: 1
+  labels:
+    app.kubernetes.io/name: virtual-garden-etcd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: virtual-garden-etcd
+  etcd:
+    quota: 2Gi
+    defragmentationSchedule: "0 */24 * * *"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  backup:
+    port: 8080
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  sharedConfig:
+    autoCompactionMode: periodic
+    autoCompactionRetention: "30m"
+  storageCapacity: 2Gi

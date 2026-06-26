@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virtual-garden-kube-apiserver
+  namespace: virtual-garden
+  labels:
+    app: virtual-garden-kube-apiserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: virtual-garden-kube-apiserver
+  template:
+    metadata:
+      labels:
+        app: virtual-garden-kube-apiserver
+    spec:
+      containers:
+        - name: kube-apiserver
+          image: registry.k8s.io/kube-apiserver:v1.32.0
+          command:
+            - kube-apiserver
+            - --etcd-servers=http://virtual-garden-etcd-client:2379
+            - --secure-port=6443
+            - --bind-address=0.0.0.0
+            - --advertise-address=$(POD_IP)
+            - --cert-dir=/var/run/kubernetes
+            - --service-cluster-ip-range=10.96.0.0/24
+            # serving cert (CA-signed by cert-manager)
+            - --tls-cert-file=/etc/kubernetes/pki/server/tls.crt
+            - --tls-private-key-file=/etc/kubernetes/pki/server/tls.key
+            # validate client certs against the same CA (ca.crt ships in the server secret)
+            - --client-ca-file=/etc/kubernetes/pki/server/ca.crt
+            # ServiceAccount signing: the key file also serves as the verification
+            # key (the apiserver derives the public key from the private key).
+            - --service-account-key-file=/etc/kubernetes/pki/sa/tls.key
+            - --service-account-signing-key-file=/etc/kubernetes/pki/sa/tls.key
+            - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+            - --api-audiences=https://kubernetes.default.svc.cluster.local
+            - --authorization-mode=RBAC
+            - --allow-privileged=true
+            - --v=2
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: https
+              containerPort: 6443
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: 6443
+              scheme: HTTPS
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 6443
+              scheme: HTTPS
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6443
+              scheme: HTTPS
+            periodSeconds: 5
+          volumeMounts:
+            - name: server-tls
+              mountPath: /etc/kubernetes/pki/server
+              readOnly: true
+            - name: sa
+              mountPath: /etc/kubernetes/pki/sa
+              readOnly: true
+            - name: cert-dir
+              mountPath: /var/run/kubernetes
+      volumes:
+        - name: server-tls
+          secret:
+            secretName: virtual-garden-kube-apiserver-server
+        - name: sa
+          secret:
+            secretName: virtual-garden-sa
+        - name: cert-dir
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: virtual-garden-kube-apiserver
+  namespace: virtual-garden
+spec:
+  selector:
+    app: virtual-garden-kube-apiserver
+  ports:
+    - name: https
+      port: 443
+      targetPort: 6443
