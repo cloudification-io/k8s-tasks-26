@@ -48,10 +48,10 @@ spec:
           ports:
             - name: https
               containerPort: 6443
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
+          # securityContext:
+          #   allowPrivilegeEscalation: false
+          #   capabilities:
+          #     drop: ["ALL"]
           resources:
             requests:
               cpu: 250m
